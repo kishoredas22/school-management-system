@@ -1,0 +1,77 @@
+"""Shared enumerations."""
+
+from enum import StrEnum
+
+
+class RoleName(StrEnum):
+    SUPER_ADMIN = "SUPER_ADMIN"
+    ADMIN = "ADMIN"
+    TEACHER = "TEACHER"
+    DATA_ENTRY = "DATA_ENTRY"
+
+
+class LoginMode(StrEnum):
+    PASSWORD = "PASSWORD"
+    EMAIL_LINK = "EMAIL_LINK"
+
+
+class AuditReviewStatus(StrEnum):
+    NOT_REQUIRED = "NOT_REQUIRED"
+    PENDING = "PENDING"
+    APPROVED = "APPROVED"
+    REJECTED = "REJECTED"
+
+
+class PermissionCode(StrEnum):
+    DASHBOARD_VIEW = "DASHBOARD_VIEW"
+    USER_MANAGE = "USER_MANAGE"
+    STUDENT_VIEW = "STUDENT_VIEW"
+    STUDENT_MANAGE = "STUDENT_MANAGE"
+    TEACHER_MANAGE = "TEACHER_MANAGE"
+    TEACHER_VIEW = "TEACHER_VIEW"
+    TEACHER_SCOPE_MANAGE = "TEACHER_SCOPE_MANAGE"
+    STUDENT_RECORDS = "STUDENT_RECORDS"
+    STUDENT_STATUS = "STUDENT_STATUS"
+    ATTENDANCE_STUDENT = "ATTENDANCE_STUDENT"
+    ATTENDANCE_TEACHER = "ATTENDANCE_TEACHER"
+    FEE_VIEW = "FEE_VIEW"
+    FEE_MANAGE = "FEE_MANAGE"
+    REPORT_VIEW = "REPORT_VIEW"
+    AUDIT_VIEW = "AUDIT_VIEW"
+    REFERENCE_MANAGE = "REFERENCE_MANAGE"
+    ACADEMIC_YEAR_MANAGE = "ACADEMIC_YEAR_MANAGE"
+
+
+class StudentStatus(StrEnum):
+    ACTIVE = "ACTIVE"
+    PASSED_OUT = "PASSED_OUT"
+    TOOK_TC = "TOOK_TC"
+    INACTIVE = "INACTIVE"
+
+
+class PromotionAction(StrEnum):
+    PROMOTE = "PROMOTE"
+    HOLD = "HOLD"
+    PASS_OUT = "PASS_OUT"
+
+
+class AttendanceStatus(StrEnum):
+    PRESENT = "PRESENT"
+    ABSENT = "ABSENT"
+    LEAVE = "LEAVE"
+
+
+class PaymentMode(StrEnum):
+    CASH = "CASH"
+    BANK = "BANK"
+    UPI = "UPI"
+
+
+class FeeType(StrEnum):
+    ONE_TIME = "ONE_TIME"
+    RECURRING = "RECURRING"
+
+
+class ExamStatus(StrEnum):
+    DRAFT = "DRAFT"
+    PUBLISHED = "PUBLISHED"

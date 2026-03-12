@@ -1,0 +1,75 @@
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: school_management
+      POSTGRES_USER: sms
+      POSTGRES_PASSWORD: sms
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U sms -d school_management"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  api:
+    build:
+      context: .
+    env_file:
+      - .env
+    ports:
+      - "8000:8000"
+    depends_on:
+      db:
+        condition: service_healthy
+
+  frontend:
+    build:
+      context: .
+      dockerfile: frontend/Dockerfile
+      args:
+        VITE_API_BASE_URL: /api/v1
+    ports:
+      - "5173:5173"
+    depends_on:
+      api:
+        condition: service_started
+
+  nginx:
+    image: nginx:1.27-alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - frontend
+      - api
+
+  ngrok:
+    image: ngrok/ngrok:3
+    profiles:
+      - ngrok
+    env_file:
+      - .env
+    entrypoint:
+      - /bin/sh
+      - -c
+    volumes:
+      - ./ngrok.yml:/etc/ngrok.yml:ro
+    command:
+      - |
+        if [ -n "$NGROK_DOMAIN" ]; then
+          ngrok http --config /etc/ngrok.yml --log=stdout "http://nginx:80" --url="https://$NGROK_DOMAIN"
+        else
+          ngrok http --config /etc/ngrok.yml --log=stdout "http://nginx:80"
+        fi
+    ports:
+      - "4040:4040"
+    depends_on:
+      - nginx
+
+volumes:
+  postgres_data:
