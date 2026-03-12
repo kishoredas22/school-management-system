@@ -17,6 +17,7 @@ class Teacher(UUIDPrimaryKeyMixin, TimestampMixin, SoftDeleteMixin, Base):
 
     name: Mapped[str] = mapped_column(String(150), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(20))
+    email: Mapped[str | None] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True, nullable=False)
 
     assignments = relationship("TeacherClassAssignment", back_populates="teacher", cascade="all, delete-orphan")

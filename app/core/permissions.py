@@ -88,6 +88,48 @@ PERMISSION_DEFINITIONS: tuple[PermissionDefinition, ...] = (
         group="Reporting",
     ),
     PermissionDefinition(
+        code=PermissionCode.SUBJECT_MANAGE,
+        label="Subject master",
+        description="Create and maintain the school subject catalog.",
+        group="Academics",
+    ),
+    PermissionDefinition(
+        code=PermissionCode.TEACHER_SUBJECT_MANAGE,
+        label="Teacher-subject mapping",
+        description="Map teachers to subjects by academic year, class, and section.",
+        group="Academics",
+    ),
+    PermissionDefinition(
+        code=PermissionCode.EXAM_MANAGE,
+        label="Exam setup",
+        description="Create, review, and publish exam definitions.",
+        group="Academics",
+    ),
+    PermissionDefinition(
+        code=PermissionCode.MARKS_ENTRY,
+        label="Marks entry",
+        description="Open marks registers and submit subject-wise student marks.",
+        group="Academics",
+    ),
+    PermissionDefinition(
+        code=PermissionCode.GRADE_RULE_MANAGE,
+        label="Grade rules",
+        description="Maintain percentage bands, grade labels, and academic remarks.",
+        group="Academics",
+    ),
+    PermissionDefinition(
+        code=PermissionCode.TIMETABLE_MANAGE,
+        label="Timetable",
+        description="Create and review class and section timetable entries.",
+        group="Academics",
+    ),
+    PermissionDefinition(
+        code=PermissionCode.REPORT_CARD_VIEW,
+        label="Report cards",
+        description="Review exam results and generate printable report cards.",
+        group="Academics",
+    ),
+    PermissionDefinition(
         code=PermissionCode.AUDIT_VIEW,
         label="Audit logs",
         description="View audit-trail history and change events.",
@@ -130,6 +172,13 @@ ROLE_PERMISSION_DEFAULTS: dict[RoleName, tuple[PermissionCode, ...]] = {
         PermissionCode.FEE_VIEW,
         PermissionCode.FEE_MANAGE,
         PermissionCode.REPORT_VIEW,
+        PermissionCode.SUBJECT_MANAGE,
+        PermissionCode.TEACHER_SUBJECT_MANAGE,
+        PermissionCode.EXAM_MANAGE,
+        PermissionCode.MARKS_ENTRY,
+        PermissionCode.GRADE_RULE_MANAGE,
+        PermissionCode.TIMETABLE_MANAGE,
+        PermissionCode.REPORT_CARD_VIEW,
         PermissionCode.REFERENCE_MANAGE,
     ),
     RoleName.DATA_ENTRY: (
@@ -144,6 +193,7 @@ ROLE_PERMISSION_DEFAULTS: dict[RoleName, tuple[PermissionCode, ...]] = {
     RoleName.TEACHER: (
         PermissionCode.STUDENT_VIEW,
         PermissionCode.ATTENDANCE_STUDENT,
+        PermissionCode.MARKS_ENTRY,
     ),
 }
 
@@ -173,7 +223,12 @@ def effective_permissions_for_user(*, role_name: str, assigned_permissions: list
     """Return the effective permission set for a user."""
 
     if role_name == RoleName.SUPER_ADMIN.value:
-        return {item.code.value for item in PERMISSION_DEFINITIONS if item.visible}
+        return expand_permission_codes(
+            {
+                *(item.code.value for item in PERMISSION_DEFINITIONS if item.visible),
+                PermissionCode.STUDENT_RECORDS.value,
+            }
+        )
 
     if assigned_permissions:
         return expand_permission_codes(set(assigned_permissions))
@@ -200,6 +255,6 @@ def serialize_permission_catalog() -> list[dict[str, str]]:
 
 def serialize_role_defaults() -> dict[str, list[str]]:
     return {
-        role.value: [permission.value for permission in expand_permission_codes({item.value for item in permissions})]
+        role.value: sorted(expand_permission_codes({item.value for item in permissions}))
         for role, permissions in ROLE_PERMISSION_DEFAULTS.items()
     }

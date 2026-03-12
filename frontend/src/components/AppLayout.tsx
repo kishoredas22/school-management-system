@@ -15,6 +15,7 @@ interface NavItem {
 
 const navItems: NavItem[] = [
   { to: "/dashboard", label: "Overview", badge: "Live", roles: ["SUPER_ADMIN", "ADMIN", "TEACHER", "DATA_ENTRY"] },
+  { to: "/academics", label: "Academics", badge: "Exam", roles: ["SUPER_ADMIN", "ADMIN"], permission: "REFERENCE_MANAGE" },
   {
     to: "/students",
     label: "Students",

@@ -82,6 +82,7 @@ Frontend local URL: `http://localhost:5173`
 - Local frontend development uses `frontend/.env` and defaults to `http://localhost:8000/api/v1`
 - Docker builds point the frontend at `/api/v1` and rely on container-side proxying, so the same image works behind the shared reverse proxy and `ngrok`
 - Email-link sign-in URLs use `FRONTEND_APP_URL`, so set that env var to your real app URL before sharing email login links outside localhost
+- Teacher salary-slip email delivery uses SMTP. Set `SMTP_PASSWORD` to the Gmail app password for `vsksultanpur@gmail.com` if you want the app to send PDF slips directly from that mailbox.
 - The UI is role-aware and exposes screens for dashboard, students, teachers, fees, attendance, reports, audit logs, and user access management
 - The visual design uses a custom editorial-style interface instead of a stock admin template
 

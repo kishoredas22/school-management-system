@@ -22,18 +22,18 @@ class TeacherRepository:
         return teacher
 
     def get_by_id(self, teacher_id: str) -> Teacher | None:
-        return self.db.scalar(
+        query = (
             select(Teacher)
             .options(
-                joinedload(Teacher.assignments),
-                joinedload(Teacher.contracts),
-                joinedload(Teacher.payments),
+                joinedload(Teacher.assignments).joinedload(TeacherClassAssignment.class_room),
+                joinedload(Teacher.assignments).joinedload(TeacherClassAssignment.section),
             )
             .where(Teacher.id == teacher_id, Teacher.is_deleted.is_(False))
         )
+        return self.db.execute(query).unique().scalar_one_or_none()
 
     def list_teachers(self) -> list[Teacher]:
-        return self.db.scalars(
+        query = (
             select(Teacher)
             .options(
                 joinedload(Teacher.assignments).joinedload(TeacherClassAssignment.class_room),
@@ -41,7 +41,8 @@ class TeacherRepository:
             )
             .where(Teacher.is_deleted.is_(False))
             .order_by(Teacher.name)
-        ).all()
+        )
+        return self.db.execute(query).unique().scalars().all()
 
     def save(self, teacher: Teacher) -> Teacher:
         self.db.add(teacher)
@@ -85,6 +86,21 @@ class TeacherRepository:
             query = query.where(TeacherContract.teacher_id == teacher_id)
         if academic_year_id:
             query = query.where(TeacherContract.academic_year_id == academic_year_id)
+        return self.db.scalars(query).all()
+
+    def list_payments(self, teacher_id: str | None = None, contract_id: str | None = None) -> list[TeacherPayment]:
+        query = (
+            select(TeacherPayment)
+            .options(
+                joinedload(TeacherPayment.teacher),
+                joinedload(TeacherPayment.contract).joinedload(TeacherContract.academic_year),
+            )
+            .order_by(TeacherPayment.payment_date.desc(), TeacherPayment.created_at.desc())
+        )
+        if teacher_id:
+            query = query.where(TeacherPayment.teacher_id == teacher_id)
+        if contract_id:
+            query = query.where(TeacherPayment.contract_id == contract_id)
         return self.db.scalars(query).all()
 
     def create_payment(self, payment: TeacherPayment) -> TeacherPayment:
@@ -133,7 +149,12 @@ class TeacherRepository:
             TeacherClassAssignment.class_id == class_id,
         )
         if section_id:
-            query = query.where(TeacherClassAssignment.section_id == section_id)
+            query = query.where(
+                (TeacherClassAssignment.section_id == section_id)
+                | (TeacherClassAssignment.section_id.is_(None))
+            )
+        else:
+            query = query.where(TeacherClassAssignment.section_id.is_(None))
         if academic_year_id:
             query = query.where(
                 (TeacherClassAssignment.academic_year_id == academic_year_id)

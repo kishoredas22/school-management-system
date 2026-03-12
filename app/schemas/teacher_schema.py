@@ -23,6 +23,7 @@ class TeacherCreate(BaseModel):
 
     name: str = Field(min_length=1, max_length=150)
     phone: str | None = Field(default=None, max_length=20)
+    email: str | None = Field(default=None, max_length=255)
     assigned_classes: list[TeacherAssignmentCreate] = []
 
 
@@ -31,6 +32,7 @@ class TeacherUpdate(BaseModel):
 
     name: str | None = Field(default=None, max_length=150)
     phone: str | None = Field(default=None, max_length=20)
+    email: str | None = Field(default=None, max_length=255)
     assigned_classes: list[TeacherAssignmentCreate] | None = None
     is_active: bool | None = None
 
@@ -41,6 +43,7 @@ class TeacherRead(ORMModel):
     id: UUID
     name: str
     phone: str | None
+    email: str | None
     is_active: bool
     created_at: datetime
 
@@ -72,3 +75,9 @@ class TeacherPaymentSummary(BaseModel):
     contract_total: Decimal
     total_paid: Decimal
     pending_balance: Decimal
+
+
+class TeacherSlipShareRequest(BaseModel):
+    """Salary slip sharing request."""
+
+    channel: str = Field(pattern="^(EMAIL|WHATSAPP)$")

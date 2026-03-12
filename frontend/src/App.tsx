@@ -3,6 +3,7 @@ import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppLayout } from "./components/AppLayout";
 import { PermissionGate, ProtectedRoute } from "./components/AuthGate";
 import { AuthProvider } from "./lib/auth";
+import { AcademicsPage } from "./pages/AcademicsPage";
 import { AttendancePage } from "./pages/AttendancePage";
 import { AuditLogsPage } from "./pages/AuditLogsPage";
 import { DashboardPage } from "./pages/DashboardPage";
@@ -10,6 +11,7 @@ import { FeesPage } from "./pages/FeesPage";
 import { LoginPage } from "./pages/LoginPage";
 import { ReportsPage } from "./pages/ReportsPage";
 import { StudentsPage } from "./pages/StudentsPage";
+import { TeacherDetailPage } from "./pages/TeacherDetailPage";
 import { TeachersPage } from "./pages/TeachersPage";
 import { UsersPage } from "./pages/UsersPage";
 
@@ -24,6 +26,14 @@ export default function App() {
               <Route index element={<Navigate to="/dashboard" replace />} />
               <Route path="/dashboard" element={<DashboardPage />} />
               <Route
+                path="/academics"
+                element={
+                  <PermissionGate allowed={["SUPER_ADMIN", "ADMIN"]} permission="REFERENCE_MANAGE">
+                    <AcademicsPage />
+                  </PermissionGate>
+                }
+              />
+              <Route
                 path="/students"
                 element={
                   <PermissionGate allowed={["SUPER_ADMIN", "ADMIN", "TEACHER", "DATA_ENTRY"]} permission="STUDENT_RECORDS">
@@ -36,6 +46,14 @@ export default function App() {
                 element={
                   <PermissionGate allowed={["SUPER_ADMIN", "ADMIN"]} permission="TEACHER_MANAGE">
                     <TeachersPage />
+                  </PermissionGate>
+                }
+              />
+              <Route
+                path="/teachers/:teacherId"
+                element={
+                  <PermissionGate allowed={["SUPER_ADMIN", "ADMIN"]} permission="TEACHER_MANAGE">
+                    <TeacherDetailPage />
                   </PermissionGate>
                 }
               />

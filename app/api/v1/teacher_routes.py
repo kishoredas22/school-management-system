@@ -12,7 +12,13 @@ from app.repositories.academic_year_repository import AcademicYearRepository
 from app.repositories.attendance_repository import AttendanceRepository
 from app.repositories.reference_repository import ReferenceRepository
 from app.repositories.teacher_repository import TeacherRepository
-from app.schemas.teacher_schema import TeacherContractCreate, TeacherCreate, TeacherPaymentCreate, TeacherUpdate
+from app.schemas.teacher_schema import (
+    TeacherContractCreate,
+    TeacherCreate,
+    TeacherPaymentCreate,
+    TeacherSlipShareRequest,
+    TeacherUpdate,
+)
 from app.services.teacher_service import TeacherService
 from app.utils.helpers import success_response
 from app.utils.receipt_generator import generate_salary_slip
@@ -47,12 +53,13 @@ def list_teachers(
 ):
     teachers = _teacher_service(db).list_teachers()
     data = [
-        {
-            "id": item.id,
-            "name": item.name,
-            "phone": item.phone,
-            "is_active": item.is_active,
-            "assignment_count": len(item.assignments),
+                {
+                    "id": item.id,
+                    "name": item.name,
+                    "phone": item.phone,
+                    "email": item.email,
+                    "is_active": item.is_active,
+                    "assignment_count": len(item.assignments),
             "assignments": [
                 {
                     "id": assignment.id,
@@ -134,6 +141,32 @@ def get_salary_slip(
     payload = _teacher_service(db).build_salary_slip_payload(payment_id)
     pdf = generate_salary_slip(payload)
     return Response(content=pdf, media_type="application/pdf")
+
+
+@router.post("/payments/{payment_id}/share")
+def share_salary_slip(
+    payment_id: UUID,
+    payload: TeacherSlipShareRequest,
+    _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
+    __=Depends(require_permissions(PermissionCode.TEACHER_MANAGE)),
+    db=Depends(get_db),
+):
+    data = _teacher_service(db).prepare_salary_slip_share(str(payment_id), channel=payload.channel)
+    return success_response(
+        data=data,
+        message="Salary slip emailed successfully" if payload.channel == "EMAIL" else "Salary slip share action prepared",
+    )
+
+
+@router.get("/{teacher_id}")
+def get_teacher_detail(
+    teacher_id: UUID,
+    _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
+    __=Depends(require_permissions(PermissionCode.TEACHER_MANAGE)),
+    db=Depends(get_db),
+):
+    data = _teacher_service(db).get_teacher_detail(str(teacher_id))
+    return success_response(data=data, message="Teacher detail retrieved")
 
 
 @router.put("/{teacher_id}")

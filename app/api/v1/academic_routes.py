@@ -6,7 +6,8 @@ from fastapi import APIRouter, Depends, Query
 from fastapi.responses import Response
 
 from app.core.database import get_db
-from app.core.dependencies import require_permissions, require_roles
+from app.core.dependencies import require_any_permissions, require_permissions, require_roles
+from app.core.exceptions import AuthorizationException
 from app.models.enums import ExamStatus, PermissionCode, RoleName
 from app.repositories.academic_repository import AcademicRepository
 from app.repositories.academic_year_repository import AcademicYearRepository
@@ -101,7 +102,12 @@ def _serialize_grade_rule(item):
     }
 
 
-def _serialize_exam(item):
+def _serialize_exam(item, *, visible_subject_ids: set[str] | None = None):
+    visible_subjects = [
+        subject
+        for subject in item.subjects
+        if visible_subject_ids is None or str(subject.id) in visible_subject_ids
+    ]
     return {
         "id": item.id,
         "academic_year_id": item.academic_year_id,
@@ -115,7 +121,7 @@ def _serialize_exam(item):
         "start_date": item.start_date,
         "end_date": item.end_date,
         "status": item.status,
-        "subject_count": len(item.subjects),
+        "subject_count": len(visible_subjects),
         "subjects": [
             {
                 "id": subject.id,
@@ -124,7 +130,7 @@ def _serialize_exam(item):
                 "max_marks": subject.max_marks,
                 "pass_marks": subject.pass_marks,
             }
-            for subject in item.subjects
+            for subject in visible_subjects
         ],
     }
 
@@ -132,7 +138,13 @@ def _serialize_exam(item):
 @router.get("/subjects")
 def list_subjects(
     _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    __=Depends(
+        require_any_permissions(
+            PermissionCode.SUBJECT_MANAGE,
+            PermissionCode.EXAM_MANAGE,
+            PermissionCode.TIMETABLE_MANAGE,
+        )
+    ),
     db=Depends(get_db),
 ):
     items = _academic_service(db).list_subjects()
@@ -143,7 +155,7 @@ def list_subjects(
 def create_subject(
     payload: SubjectCreate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.SUBJECT_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).create_subject(payload, actor_id=current_user.id)
@@ -155,7 +167,7 @@ def update_subject(
     subject_id: UUID,
     payload: SubjectUpdate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.SUBJECT_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).update_subject(str(subject_id), payload, actor_id=current_user.id)
@@ -167,10 +179,14 @@ def list_teacher_subject_assignments(
     year_id: UUID | None = None,
     class_id: UUID | None = None,
     teacher_id: UUID | None = None,
-    _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN, RoleName.TEACHER)),
+    _=Depends(require_any_permissions(PermissionCode.TEACHER_SUBJECT_MANAGE, PermissionCode.MARKS_ENTRY)),
     db=Depends(get_db),
 ):
+    if current_user.role.name == RoleName.TEACHER:
+        if not current_user.teacher_id:
+            raise AuthorizationException("This teacher account is not linked to a teacher profile")
+        teacher_id = UUID(current_user.teacher_id)
     items = _academic_service(db).list_teacher_subject_assignments(
         academic_year_id=str(year_id) if year_id else None,
         class_id=str(class_id) if class_id else None,
@@ -183,7 +199,7 @@ def list_teacher_subject_assignments(
 def create_teacher_subject_assignment(
     payload: TeacherSubjectAssignmentCreate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.TEACHER_SUBJECT_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).create_teacher_subject_assignment(payload, actor_id=current_user.id)
@@ -196,7 +212,7 @@ def list_timetable_entries(
     class_id: UUID | None = None,
     section_id: UUID | None = None,
     _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    __=Depends(require_permissions(PermissionCode.TIMETABLE_MANAGE)),
     db=Depends(get_db),
 ):
     items = _academic_service(db).list_timetable_entries(
@@ -211,7 +227,7 @@ def list_timetable_entries(
 def create_timetable_entry(
     payload: TimetableEntryCreate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.TIMETABLE_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).create_timetable_entry(payload, actor_id=current_user.id)
@@ -222,7 +238,7 @@ def create_timetable_entry(
 def list_grade_rules(
     year_id: UUID | None = None,
     _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    __=Depends(require_permissions(PermissionCode.GRADE_RULE_MANAGE)),
     db=Depends(get_db),
 ):
     items = _academic_service(db).list_grade_rules(academic_year_id=str(year_id) if year_id else None)
@@ -233,7 +249,7 @@ def list_grade_rules(
 def create_grade_rule(
     payload: GradeRuleCreate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.GRADE_RULE_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).create_grade_rule(payload, actor_id=current_user.id)
@@ -244,14 +260,30 @@ def create_grade_rule(
 def list_exams(
     year_id: UUID | None = None,
     class_id: UUID | None = None,
-    _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN, RoleName.TEACHER)),
+    _=Depends(
+        require_any_permissions(
+            PermissionCode.EXAM_MANAGE,
+            PermissionCode.MARKS_ENTRY,
+            PermissionCode.REPORT_CARD_VIEW,
+        )
+    ),
     db=Depends(get_db),
 ):
     items = _academic_service(db).list_exams(
         academic_year_id=str(year_id) if year_id else None,
         class_id=str(class_id) if class_id else None,
     )
+    if current_user.role.name == RoleName.TEACHER:
+        if not current_user.teacher_id:
+            raise AuthorizationException("This teacher account is not linked to a teacher profile")
+        visible_items = []
+        service = _academic_service(db)
+        for item in items:
+            accessible_subject_ids = service.get_accessible_exam_subject_ids(teacher_id=current_user.teacher_id, exam=item)
+            if accessible_subject_ids:
+                visible_items.append(_serialize_exam(item, visible_subject_ids=accessible_subject_ids))
+        return success_response(data=visible_items, message="Exams retrieved")
     return success_response(data=[_serialize_exam(item) for item in items], message="Exams retrieved")
 
 
@@ -259,7 +291,7 @@ def list_exams(
 def create_exam(
     payload: ExamCreate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.EXAM_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).create_exam(payload, actor_id=current_user.id)
@@ -271,7 +303,7 @@ def update_exam_status(
     exam_id: UUID,
     payload: ExamStatusUpdate,
     current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    _=Depends(require_permissions(PermissionCode.EXAM_MANAGE)),
     db=Depends(get_db),
 ):
     item = _academic_service(db).update_exam_status(str(exam_id), status=payload.status, actor_id=current_user.id)
@@ -282,10 +314,17 @@ def update_exam_status(
 def get_marks_register(
     exam_subject_id: UUID,
     q: str | None = Query(default=None),
-    _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN, RoleName.TEACHER)),
+    _=Depends(require_permissions(PermissionCode.MARKS_ENTRY)),
     db=Depends(get_db),
 ):
+    if current_user.role.name == RoleName.TEACHER:
+        if not current_user.teacher_id:
+            raise AuthorizationException("This teacher account is not linked to a teacher profile")
+        _academic_service(db).ensure_teacher_can_access_exam_subject(
+            teacher_id=current_user.teacher_id,
+            exam_subject_id=str(exam_subject_id),
+        )
     rows = _academic_service(db).get_marks_register(exam_subject_id=str(exam_subject_id), search=q)
     return success_response(data=rows, message="Marks register retrieved")
 
@@ -294,10 +333,17 @@ def get_marks_register(
 def save_marks(
     exam_subject_id: UUID,
     payload: StudentMarkBatchCreate,
-    current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    _=Depends(require_permissions(PermissionCode.REFERENCE_MANAGE)),
+    current_user=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN, RoleName.TEACHER)),
+    _=Depends(require_permissions(PermissionCode.MARKS_ENTRY)),
     db=Depends(get_db),
 ):
+    if current_user.role.name == RoleName.TEACHER:
+        if not current_user.teacher_id:
+            raise AuthorizationException("This teacher account is not linked to a teacher profile")
+        _academic_service(db).ensure_teacher_can_access_exam_subject(
+            teacher_id=current_user.teacher_id,
+            exam_subject_id=str(exam_subject_id),
+        )
     result = _academic_service(db).save_marks(
         exam_subject_id=str(exam_subject_id),
         entries=payload.entries,
@@ -310,7 +356,7 @@ def save_marks(
 def list_exam_results(
     exam_id: UUID,
     _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REPORT_VIEW)),
+    __=Depends(require_permissions(PermissionCode.REPORT_CARD_VIEW)),
     db=Depends(get_db),
 ):
     data = _academic_service(db).list_exam_results(exam_id=str(exam_id))
@@ -322,7 +368,7 @@ def get_report_card(
     exam_id: UUID,
     student_id: UUID,
     _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REPORT_VIEW)),
+    __=Depends(require_permissions(PermissionCode.REPORT_CARD_VIEW)),
     db=Depends(get_db),
 ):
     data = _academic_service(db).build_report_card(exam_id=str(exam_id), student_id=str(student_id))
@@ -334,7 +380,7 @@ def get_report_card_pdf(
     exam_id: UUID,
     student_id: UUID,
     _=Depends(require_roles(RoleName.SUPER_ADMIN, RoleName.ADMIN)),
-    __=Depends(require_permissions(PermissionCode.REPORT_VIEW)),
+    __=Depends(require_permissions(PermissionCode.REPORT_CARD_VIEW)),
     db=Depends(get_db),
 ):
     payload = _academic_service(db).build_report_card(exam_id=str(exam_id), student_id=str(student_id))

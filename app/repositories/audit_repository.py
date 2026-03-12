@@ -114,7 +114,10 @@ class AuditRepository:
     def get_summary(self) -> dict[str, int]:
         total = self.db.scalar(select(func.count()).select_from(AuditLog)) or 0
         review_required = self.db.scalar(
-            select(func.count()).select_from(AuditLog).where(AuditLog.requires_review.is_(True))
+            select(func.count()).select_from(AuditLog).where(
+                AuditLog.requires_review.is_(True),
+                AuditLog.review_status == AuditReviewStatus.PENDING,
+            )
         ) or 0
         pending = self.db.scalar(
             select(func.count())

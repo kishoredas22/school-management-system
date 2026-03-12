@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useDeferredValue, useEffect, useMemo, useState } from "react";
 
 import { DataTable } from "../components/DataTable";
 import { MetricCard } from "../components/MetricCard";
@@ -43,6 +43,7 @@ export function ReportsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [message, setMessage] = useState("");
+  const deferredStudentSearch = useDeferredValue(studentSearch);
 
   useEffect(() => {
     if (!session) {
@@ -236,13 +237,13 @@ export function ReportsPage() {
     };
   }, [calendarYear, logout, month, selectedStudentId, session]);
 
-  const filteredStudents = students.filter((student) => {
-    const term = studentSearch.trim().toLowerCase();
+  const filteredStudents = useMemo(() => students.filter((student) => {
+    const term = deferredStudentSearch.trim().toLowerCase();
     if (!term) {
       return true;
     }
     return `${student.first_name} ${student.last_name || ""} ${student.student_id || ""}`.toLowerCase().includes(term);
-  });
+  }), [deferredStudentSearch, students]);
 
   async function handleExport(path: string, filename: string) {
     if (!session) {

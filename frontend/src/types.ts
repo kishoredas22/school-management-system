@@ -236,6 +236,7 @@ export interface Teacher {
   id: string;
   name: string;
   phone: string | null;
+  email: string | null;
   is_active: boolean;
   assignment_count?: number;
   assignments?: TeacherAssignment[];
@@ -250,6 +251,34 @@ export interface TeacherContract {
   yearly_contract_amount: string;
   monthly_salary: string | null;
   created_at: string;
+}
+
+export interface TeacherPaymentRecord {
+  id: string;
+  receipt_number: string;
+  payment_date: string;
+  amount_paid: string;
+  payment_mode: PaymentMode;
+  contract_id: string;
+  academic_year_name: string;
+  contract_total: string;
+  pending_balance: string;
+}
+
+export interface TeacherDetail extends Teacher {
+  created_at: string;
+  contracts: TeacherContract[];
+  payments: TeacherPaymentRecord[];
+}
+
+export interface SalarySlipSharePreview {
+  channel: "EMAIL" | "WHATSAPP";
+  destination: string;
+  launch_url?: string | null;
+  receipt_number: string;
+  salary_month: string;
+  delivery?: string;
+  sender_email?: string | null;
 }
 
 export interface FeeStructure {

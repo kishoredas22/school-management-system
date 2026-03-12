@@ -592,6 +592,18 @@ button {
   color: var(--ink);
 }
 
+.link-button {
+  padding: 0;
+  border: none;
+  background: transparent;
+  color: #24345f;
+  font-weight: 700;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: rgba(36, 52, 95, 0.28);
+  text-underline-offset: 4px;
+}
+
 .primary-button {
   background: var(--ink);
   color: var(--white);
@@ -611,6 +623,7 @@ button {
 }
 
 .ghost-button:hover,
+.link-button:hover,
 .primary-button:hover,
 .accent-button:hover,
 .soft-button:hover {
@@ -825,6 +838,31 @@ button {
 .list-card {
   display: grid;
   gap: 12px;
+}
+
+.academic-subject-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1.7fr) repeat(2, minmax(120px, 0.7fr)) auto;
+  gap: 12px;
+  align-items: end;
+  padding: 14px;
+  border-radius: 20px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.44);
+}
+
+.academic-row-action {
+  min-width: 110px;
+}
+
+.status-draft {
+  background: rgba(244, 177, 70, 0.18);
+  color: #9b6508;
+}
+
+.status-published {
+  background: rgba(45, 141, 116, 0.14);
+  color: var(--mint);
 }
 
 .list-row {
@@ -1087,6 +1125,10 @@ button {
 
   .field-span-2 {
     grid-column: auto;
+  }
+
+  .academic-subject-row {
+    grid-template-columns: 1fr;
   }
 }
 

@@ -90,6 +90,30 @@ class AcademicRepository:
             query = query.where(TeacherSubjectAssignment.teacher_id == teacher_id)
         return self.db.scalars(query).all()
 
+    def teacher_has_subject_scope(
+        self,
+        *,
+        teacher_id: str,
+        academic_year_id: str,
+        class_id: str,
+        section_id: str | None,
+        subject_id: str,
+    ) -> bool:
+        query = select(func.count()).select_from(TeacherSubjectAssignment).where(
+            TeacherSubjectAssignment.teacher_id == teacher_id,
+            TeacherSubjectAssignment.academic_year_id == academic_year_id,
+            TeacherSubjectAssignment.class_id == class_id,
+            TeacherSubjectAssignment.subject_id == subject_id,
+        )
+        if section_id:
+            query = query.where(
+                (TeacherSubjectAssignment.section_id == section_id)
+                | (TeacherSubjectAssignment.section_id.is_(None))
+            )
+        else:
+            query = query.where(TeacherSubjectAssignment.section_id.is_(None))
+        return (self.db.scalar(query) or 0) > 0
+
     def get_timetable_conflict(
         self,
         *,

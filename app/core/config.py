@@ -22,6 +22,13 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60
     email_login_link_expire_minutes: int = 30
     frontend_app_url: str = "http://localhost:5173"
+    smtp_host: str = "smtp.gmail.com"
+    smtp_port: int = 587
+    smtp_username: str = "vsksultanpur@gmail.com"
+    smtp_password: str = ""
+    smtp_use_tls: bool = True
+    smtp_sender_email: str = "vsksultanpur@gmail.com"
+    smtp_sender_name: str = "Vivekananda Siksha Kendra (VSK)"
     database_url: str = "postgresql+psycopg://sms:sms@db:5432/school_management"
     cors_origins: list[str] = [
         "http://localhost:3000",
@@ -36,7 +43,7 @@ class Settings(BaseSettings):
     initial_super_admin_username: str = "superadmin"
     initial_super_admin_password: str = "password123"
 
-    @field_validator("debug", mode="before")
+    @field_validator("debug", "smtp_use_tls", mode="before")
     @classmethod
     def parse_debug(cls, value):
         if isinstance(value, bool):

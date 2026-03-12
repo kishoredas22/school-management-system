@@ -72,3 +72,15 @@ def require_permissions(*required_permissions: PermissionCode):
         return current_user
 
     return dependency
+
+
+def require_any_permissions(*required_permissions: PermissionCode):
+    """Return a dependency that validates at least one of the supplied permissions."""
+
+    def dependency(current_user: CurrentUser) -> User:
+        effective = get_effective_permissions(current_user)
+        if not any(permission.value in effective for permission in required_permissions):
+            raise AuthorizationException(message="You do not have access to this resource")
+        return current_user
+
+    return dependency

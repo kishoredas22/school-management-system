@@ -2,7 +2,7 @@
 
 from decimal import Decimal
 
-from app.core.exceptions import ConflictException, NotFoundException, ValidationException
+from app.core.exceptions import AuthorizationException, ConflictException, NotFoundException, ValidationException
 from app.models.academic import Exam, ExamSubject, GradeRule, StudentMark, Subject, TeacherSubjectAssignment, TimetableEntry
 from app.models.enums import ExamStatus
 from app.repositories.academic_repository import AcademicRepository
@@ -153,6 +153,55 @@ class AcademicService:
             class_id=class_id,
             teacher_id=teacher_id,
         )
+
+    def _teacher_can_access_subject_scope(
+        self,
+        *,
+        teacher_id: str,
+        academic_year_id: str,
+        class_id: str,
+        section_id: str | None,
+        subject_id: str,
+    ) -> bool:
+        return self.teacher_repository.is_teacher_assigned_to_class(
+            teacher_id=teacher_id,
+            class_id=class_id,
+            section_id=section_id,
+            academic_year_id=academic_year_id,
+        ) and self.academic_repository.teacher_has_subject_scope(
+            teacher_id=teacher_id,
+            academic_year_id=academic_year_id,
+            class_id=class_id,
+            section_id=section_id,
+            subject_id=subject_id,
+        )
+
+    def get_accessible_exam_subject_ids(self, *, teacher_id: str, exam: Exam) -> set[str]:
+        accessible_subject_ids: set[str] = set()
+        for exam_subject in exam.subjects:
+            if self._teacher_can_access_subject_scope(
+                teacher_id=teacher_id,
+                academic_year_id=exam.academic_year_id,
+                class_id=exam.class_id,
+                section_id=exam.section_id,
+                subject_id=exam_subject.subject_id,
+            ):
+                accessible_subject_ids.add(str(exam_subject.id))
+        return accessible_subject_ids
+
+    def ensure_teacher_can_access_exam_subject(self, *, teacher_id: str, exam_subject_id: str) -> ExamSubject:
+        exam_subject = self.academic_repository.get_exam_subject(exam_subject_id)
+        if not exam_subject:
+            raise NotFoundException("Exam subject not found")
+        if not self._teacher_can_access_subject_scope(
+            teacher_id=teacher_id,
+            academic_year_id=exam_subject.exam.academic_year_id,
+            class_id=exam_subject.exam.class_id,
+            section_id=exam_subject.exam.section_id,
+            subject_id=exam_subject.subject_id,
+        ):
+            raise AuthorizationException("You do not have access to this marks register")
+        return exam_subject
 
     def create_timetable_entry(self, payload, *, actor_id: str) -> TimetableEntry:
         academic_year = self._require_year(payload.academic_year_id)

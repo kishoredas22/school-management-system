@@ -4,6 +4,7 @@ from calendar import monthrange
 from datetime import date
 from decimal import Decimal
 
+from app.core.config import settings
 from app.core.exceptions import ConflictException, NotFoundException, ValidationException
 from app.models.teacher import Teacher, TeacherClassAssignment, TeacherContract, TeacherPayment
 from app.repositories.academic_year_repository import AcademicYearRepository
@@ -11,7 +12,9 @@ from app.repositories.attendance_repository import AttendanceRepository
 from app.repositories.reference_repository import ReferenceRepository
 from app.repositories.teacher_repository import TeacherRepository
 from app.utils.audit_logger import log_audit_event
+from app.utils.email_sender import send_email_with_attachment
 from app.utils.helpers import generate_receipt_number, model_to_dict
+from app.utils.receipt_generator import generate_salary_slip
 
 
 class TeacherService:
@@ -51,7 +54,7 @@ class TeacherService:
         return assignments
 
     def create_teacher(self, payload, *, actor_id: str) -> Teacher:
-        teacher = Teacher(name=payload.name, phone=payload.phone, is_active=True)
+        teacher = Teacher(name=payload.name, phone=payload.phone, email=payload.email, is_active=True)
         teacher.assignments = self._build_assignments(payload.assigned_classes)
         created = self.teacher_repository.create(teacher)
         log_audit_event(
@@ -76,6 +79,8 @@ class TeacherService:
             teacher.name = update_data["name"]
         if "phone" in update_data:
             teacher.phone = update_data["phone"]
+        if "email" in update_data:
+            teacher.email = update_data["email"]
         if "is_active" in update_data:
             teacher.is_active = update_data["is_active"]
         if payload.assigned_classes is not None:
@@ -97,6 +102,68 @@ class TeacherService:
 
     def list_teachers(self) -> list[Teacher]:
         return self.teacher_repository.list_teachers()
+
+    def get_teacher_detail(self, teacher_id: str) -> dict:
+        teacher = self.teacher_repository.get_by_id(teacher_id)
+        if not teacher:
+            raise NotFoundException("Teacher not found")
+
+        contracts = self.teacher_repository.list_contracts(teacher_id=teacher_id)
+        payments = self.teacher_repository.list_payments(teacher_id=teacher_id)
+
+        payment_items = []
+        for payment in payments:
+            contract_total = payment.contract.yearly_contract_amount
+            total_paid = self.teacher_repository.sum_payments_for_contract(payment.contract_id)
+            pending_balance = max(contract_total - total_paid, Decimal("0"))
+            payment_items.append(
+                {
+                    "id": payment.id,
+                    "receipt_number": payment.receipt_number,
+                    "payment_date": payment.payment_date.isoformat(),
+                    "amount_paid": str(payment.amount_paid),
+                    "payment_mode": payment.payment_mode.value,
+                    "contract_id": payment.contract_id,
+                    "academic_year_name": payment.contract.academic_year.name,
+                    "contract_total": str(contract_total),
+                    "pending_balance": str(pending_balance),
+                }
+            )
+
+        return {
+            "id": teacher.id,
+            "name": teacher.name,
+            "phone": teacher.phone,
+            "email": teacher.email,
+            "is_active": teacher.is_active,
+            "created_at": teacher.created_at.isoformat(),
+            "assignment_count": len(teacher.assignments),
+            "assignments": [
+                {
+                    "id": assignment.id,
+                    "class_id": assignment.class_id,
+                    "class_name": assignment.class_room.name if assignment.class_room else None,
+                    "section_id": assignment.section_id,
+                    "section_name": assignment.section.name if assignment.section else None,
+                    "academic_year_id": assignment.academic_year_id,
+                }
+                for assignment in teacher.assignments
+            ],
+            "contracts": [
+                {
+                    "id": item.id,
+                    "teacher_id": item.teacher_id,
+                    "teacher_name": teacher.name,
+                    "academic_year_id": item.academic_year_id,
+                    "academic_year_name": item.academic_year.name,
+                    "yearly_contract_amount": str(item.yearly_contract_amount),
+                    "monthly_salary": str(item.monthly_salary or Decimal("0")),
+                    "created_at": item.created_at.isoformat(),
+                }
+                for item in contracts
+            ],
+            "payments": payment_items,
+        }
 
     def create_contract(self, payload, *, actor_id: str) -> TeacherContract:
         teacher = self.teacher_repository.get_by_id(payload.teacher_id)
@@ -211,4 +278,51 @@ class TeacherService:
             "days_worked": days_worked,
             "total_days_in_month": payment_month_end.day,
             "payment_mode": payment.payment_mode.value,
+        }
+
+    def prepare_salary_slip_share(self, payment_id: str, *, channel: str) -> dict:
+        payment = self.teacher_repository.get_payment_by_id(payment_id)
+        if not payment:
+            raise NotFoundException("Teacher payment not found")
+
+        payload = self.build_salary_slip_payload(payment_id)
+        teacher = payment.teacher
+        if channel == "EMAIL":
+            if not teacher.email:
+                raise ValidationException("Teacher email is not available for this profile")
+            slip_pdf = generate_salary_slip(payload)
+            subject = f"Salary slip {payload['salary_month']} - {payload['receipt_number']}"
+            body = (
+                f"Dear {teacher.name},\n\n"
+                f"Please find attached your salary slip for {payload['salary_month']}.\n"
+                f"Receipt number: {payload['receipt_number']}\n"
+                f"Amount paid: {payload['paid_amount']}\n\n"
+                "Regards,\n"
+                "Vivekananda Siksha Kendra (VSK)"
+            )
+            send_email_with_attachment(
+                to_email=teacher.email,
+                subject=subject,
+                body_text=body,
+                attachment_bytes=slip_pdf,
+                attachment_filename=f"{payload['receipt_number']}.pdf",
+            )
+            destination = teacher.email
+            launch_url = None
+            delivery = "SMTP_SENT"
+        elif channel == "WHATSAPP":
+            raise ValidationException(
+                "WhatsApp PDF delivery requires a configured business sender/provider, so it is not enabled yet."
+            )
+        else:
+            raise ValidationException("Unsupported sharing channel")
+
+        return {
+            "channel": channel,
+            "destination": destination,
+            "launch_url": launch_url,
+            "receipt_number": payload["receipt_number"],
+            "salary_month": payload["salary_month"],
+            "delivery": delivery,
+            "sender_email": settings.smtp_sender_email if channel == "EMAIL" else None,
         }

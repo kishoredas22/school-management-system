@@ -1,33 +1,29 @@
 import { useEffect, useState } from "react";
 import type { FormEvent } from "react";
+import { useNavigate } from "react-router-dom";
 
 import { DataTable } from "../components/DataTable";
 import { PageIntro } from "../components/PageIntro";
 import { Panel } from "../components/Panel";
+import { TeacherListPanel } from "../components/teachers/TeacherListPanel";
 import { useAuth, isUnauthorizedError } from "../lib/auth";
 import { apiRequest, downloadFile } from "../lib/api";
 import { getErrorMessage } from "../lib/errors";
 import { formatCurrency, formatDate } from "../lib/format";
-import type { AcademicYear, ClassRoom, PaymentMode, Section, Teacher, TeacherContract } from "../types";
-
-const emptyTeacherForm = {
-  name: "",
-  phone: "",
-  is_active: true,
-};
-
-const emptyAssignmentDraft = {
-  class_id: "",
-  section_id: "",
-  academic_year_id: "",
-};
-
-const emptyContractForm = {
-  teacher_id: "",
-  academic_year_id: "",
-  yearly_contract_amount: "",
-  monthly_salary: "",
-};
+import type {
+  AcademicYear,
+  ClassRoom,
+  PaymentMode,
+  Section,
+  Teacher,
+  TeacherContract,
+} from "../types";
+import {
+  deriveMonthlySalary,
+  emptyAssignmentDraft,
+  emptyContractForm,
+  emptyTeacherForm,
+} from "../components/teachers/teacherHelpers";
 
 const emptyPaymentForm = {
   teacher_id: "",
@@ -39,25 +35,9 @@ const emptyPaymentForm = {
 
 const today = new Date().toISOString().slice(0, 10);
 
-function deriveMonthlySalary(value: string) {
-  const amount = Number(value);
-  if (!Number.isFinite(amount) || amount <= 0) {
-    return "";
-  }
-  return (amount / 12).toFixed(2);
-}
-
-function assignmentText(teacher: Teacher) {
-  if (!teacher.assignments?.length) {
-    return "No classroom assignments";
-  }
-  return teacher.assignments
-    .map((assignment) => `${assignment.class_name || "Class"}${assignment.section_name ? ` / ${assignment.section_name}` : ""}`)
-    .join(", ");
-}
-
 export function TeachersPage() {
   const { session, logout } = useAuth();
+  const navigate = useNavigate();
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [contracts, setContracts] = useState<TeacherContract[]>([]);
   const [academicYears, setAcademicYears] = useState<AcademicYear[]>([]);
@@ -76,12 +56,11 @@ export function TeachersPage() {
   const [paymentForm, setPaymentForm] = useState(emptyPaymentForm);
   const [lastSlip, setLastSlip] = useState<{ paymentId: string; receiptNumber: string } | null>(null);
 
-  async function loadData() {
+  async function loadTeacherCollections() {
     if (!session) {
       return;
     }
 
-    setLoading(true);
     setError("");
 
     try {
@@ -117,9 +96,13 @@ export function TeachersPage() {
         return;
       }
       setError(getErrorMessage(loadError));
-    } finally {
-      setLoading(false);
     }
+  }
+
+  async function loadData() {
+    setLoading(true);
+    await loadTeacherCollections();
+    setLoading(false);
   }
 
   useEffect(() => {
@@ -168,6 +151,7 @@ export function TeachersPage() {
     setTeacherForm({
       name: teacher.name,
       phone: teacher.phone || "",
+      email: teacher.email || "",
       is_active: teacher.is_active,
     });
     setTeacherAssignments(
@@ -193,6 +177,7 @@ export function TeachersPage() {
       const payload = {
         name: teacherForm.name,
         phone: teacherForm.phone || null,
+        email: teacherForm.email || null,
         is_active: teacherForm.is_active,
         assigned_classes: teacherAssignments.map((item) => ({
           class_id: item.class_id,
@@ -218,7 +203,7 @@ export function TeachersPage() {
       }
 
       resetTeacherForm();
-      await loadData();
+      await loadTeacherCollections();
     } catch (submitError) {
       if (isUnauthorizedError(submitError)) {
         logout();
@@ -253,7 +238,7 @@ export function TeachersPage() {
       });
       setMessage("Teacher contract created.");
       resetContractForm();
-      await loadData();
+      await loadTeacherCollections();
     } catch (submitError) {
       if (isUnauthorizedError(submitError)) {
         logout();
@@ -335,47 +320,12 @@ export function TeachersPage() {
       {message ? <div className="message-banner is-success">{message}</div> : null}
 
       <section className="split-grid">
-        <Panel title="Faculty list" subtitle="Teacher records now surface classroom assignments alongside the basic profile.">
-          <DataTable
-            rows={teachers}
-            emptyMessage={loading ? "Loading teachers..." : "No teachers found."}
-            columns={[
-              {
-                key: "teacher",
-                label: "Teacher",
-                render: (row) => (
-                  <div>
-                    <strong>{row.name}</strong>
-                    <div className="field-note">{row.phone || "No phone on file"}</div>
-                  </div>
-                ),
-              },
-              {
-                key: "assignments",
-                label: "Assignments",
-                render: (row) => assignmentText(row),
-              },
-              {
-                key: "active",
-                label: "Status",
-                render: (row) => (
-                  <div className={`status-pill ${row.is_active ? "status-active" : "status-inactive"}`}>
-                    {row.is_active ? "Active" : "Inactive"}
-                  </div>
-                ),
-              },
-              {
-                key: "action",
-                label: "Action",
-                render: (row) => (
-                  <button className="ghost-button" type="button" onClick={() => startEditing(row)}>
-                    Edit teacher
-                  </button>
-                ),
-              },
-            ]}
-          />
-        </Panel>
+        <TeacherListPanel
+          teachers={teachers}
+          loading={loading}
+          onOpenDetail={(teacherId) => navigate(`/teachers/${teacherId}`)}
+          onEdit={startEditing}
+        />
 
         <Panel
           title={editingTeacherId ? "Edit teacher" : "Create teacher"}
@@ -398,6 +348,15 @@ export function TeachersPage() {
                   id="teacher-phone"
                   value={teacherForm.phone}
                   onChange={(event) => setTeacherForm((current) => ({ ...current, phone: event.target.value }))}
+                />
+              </div>
+              <div className="field">
+                <label htmlFor="teacher-email">Email</label>
+                <input
+                  id="teacher-email"
+                  type="email"
+                  value={teacherForm.email}
+                  onChange={(event) => setTeacherForm((current) => ({ ...current, email: event.target.value }))}
                 />
               </div>
               <div className="field">
@@ -608,36 +567,36 @@ export function TeachersPage() {
           </form>
 
           <DataTable
-            rows={contracts}
-            emptyMessage="No contracts created yet."
-            columns={[
-              {
-                key: "teacher",
-                label: "Teacher",
-                render: (row) => (
-                  <div>
-                    <strong>{row.teacher_name}</strong>
-                    <div className="field-note">{row.academic_year_name}</div>
-                  </div>
-                ),
-              },
-              {
-                key: "amount",
-                label: "Contract total",
-                render: (row) => formatCurrency(row.yearly_contract_amount),
-              },
-              {
-                key: "monthly",
-                label: "Monthly",
-                render: (row) => formatCurrency(row.monthly_salary || 0),
-              },
-              {
-                key: "created",
-                label: "Created",
-                render: (row) => formatDate(row.created_at),
-              },
-            ]}
-          />
+                rows={contracts}
+                emptyMessage="No contracts created yet."
+                columns={[
+                  {
+                    key: "teacher",
+                    label: "Teacher",
+                    render: (row: TeacherContract) => (
+                      <div>
+                        <strong>{row.teacher_name}</strong>
+                        <div className="field-note">{row.academic_year_name}</div>
+                      </div>
+                    ),
+                  },
+                  {
+                    key: "amount",
+                    label: "Contract total",
+                    render: (row: TeacherContract) => formatCurrency(row.yearly_contract_amount),
+                  },
+                  {
+                    key: "monthly",
+                    label: "Monthly",
+                    render: (row: TeacherContract) => formatCurrency(row.monthly_salary || 0),
+                  },
+                  {
+                    key: "created",
+                    label: "Created",
+                    render: (row: TeacherContract) => formatDate(row.created_at),
+                  },
+                ]}
+              />
         </Panel>
 
         <Panel title="Salary payment" subtitle="Pick a contract, record a payment, and download the latest salary slip with month summary and attendance-backed work days immediately afterward.">

@@ -31,6 +31,9 @@ export function AuditLogsPage() {
   const [entityFilter, setEntityFilter] = useState("");
   const [actionFilter, setActionFilter] = useState("");
   const [actorFilter, setActorFilter] = useState("");
+  const [entityInput, setEntityInput] = useState("");
+  const [actionInput, setActionInput] = useState("");
+  const [actorInput, setActorInput] = useState("");
   const [reviewStatusFilter, setReviewStatusFilter] = useState("");
   const [requiresReviewOnly, setRequiresReviewOnly] = useState(false);
   const [dateFrom, setDateFrom] = useState("");
@@ -99,6 +102,17 @@ export function AuditLogsPage() {
       setLoading(false);
     }
   }
+
+  useEffect(() => {
+    const timeoutId = window.setTimeout(() => {
+      setLogs((current) => ({ ...current, page: 1 }));
+      setEntityFilter(entityInput);
+      setActionFilter(actionInput);
+      setActorFilter(actorInput);
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [actionInput, actorInput, entityInput]);
 
   useEffect(() => {
     if (!session) {
@@ -206,8 +220,8 @@ export function AuditLogsPage() {
         />
         <MetricCard
           label="Need review"
-          value={loading ? "..." : String(summary?.review_required ?? 0)}
-          detail="Events flagged for governance review"
+          value={loading ? "..." : String(summary?.pending_reviews ?? 0)}
+          detail="Events still waiting for governance review"
           tone="mint"
         />
         <MetricCard
@@ -228,39 +242,30 @@ export function AuditLogsPage() {
         <div className="form-grid">
           <div className="field">
             <label htmlFor="audit-entity">Entity</label>
-            <input
-              id="audit-entity"
-              value={entityFilter}
-              onChange={(event) => {
-                setLogs((current) => ({ ...current, page: 1 }));
-                setEntityFilter(event.target.value);
-              }}
-              placeholder="USER, STUDENT, FEE_PAYMENT"
-            />
+              <input
+                id="audit-entity"
+                value={entityInput}
+                onChange={(event) => setEntityInput(event.target.value)}
+                placeholder="USER, STUDENT, FEE_PAYMENT"
+              />
           </div>
           <div className="field">
             <label htmlFor="audit-action">Action</label>
-            <input
-              id="audit-action"
-              value={actionFilter}
-              onChange={(event) => {
-                setLogs((current) => ({ ...current, page: 1 }));
-                setActionFilter(event.target.value);
-              }}
-              placeholder="CREATE, UPDATE, STATUS_CHANGE"
-            />
+              <input
+                id="audit-action"
+                value={actionInput}
+                onChange={(event) => setActionInput(event.target.value)}
+                placeholder="CREATE, UPDATE, STATUS_CHANGE"
+              />
           </div>
           <div className="field">
             <label htmlFor="audit-actor">Actor</label>
-            <input
-              id="audit-actor"
-              value={actorFilter}
-              onChange={(event) => {
-                setLogs((current) => ({ ...current, page: 1 }));
-                setActorFilter(event.target.value);
-              }}
-              placeholder="Username or actor id"
-            />
+              <input
+                id="audit-actor"
+                value={actorInput}
+                onChange={(event) => setActorInput(event.target.value)}
+                placeholder="Username or actor id"
+              />
           </div>
           <div className="field">
             <label htmlFor="audit-review-status">Review status</label>
